@@ -1,3 +1,18 @@
+var values = ["3",
+                "5",
+                "12684 7084",
+                "4073 4673",
+                "13010 1927",
+                "6564 7818",
+                "7499 1384",
+                "12549 7565 0 0 -1 1",
+                "12819 6603 0 0 -1 1",
+                "12280 8528 0 0 -1 1",
+                "13088 5640 0 0 -1 1"];
+
+function readline() {
+    return values.shift();
+}
 /*********************************** VECTOR ************************************************/
 function Vector(x, y) {
     this.x = x || 0;
@@ -287,6 +302,7 @@ GAME.main = (function () {
     }
 
     that.run = function () {
+        debugger;
         // Read initialization inputs
         initialize();
 
@@ -359,19 +375,3 @@ GAME.main = (function () {
 })();
 
 GAME.main.run();
-
-var values = [  "3",
-                "5",
-                "12684 7084",
-                "4073 4673",
-                "13010 1927",
-                "6564 7818",
-                "7499 1384",
-                "12549 7565 0 0 -1 1",
-                "12819 6603 0 0 -1 1",
-                "12280 8528 0 0 -1 1",
-                "13088 5640 0 0 -1 1"];
-
-var readline = function () {
-    return values.shift();
-}
