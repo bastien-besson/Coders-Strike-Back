@@ -1,4 +1,4 @@
-﻿/*********************************** VECTOR ************************************************/
+/*********************************** VECTOR ************************************************/
 function Vector(x, y) {
     this.x = x || 0;
     this.y = y || 0;
@@ -44,7 +44,7 @@ var moves = [
     //new Int16Array([0, 0]),
     new Int16Array([0, -90]),
     new Int16Array([0, 90]),
-    //new Int16Array([100, 0]),
+    new Int16Array([100, 0]),
     new Int16Array([100, -90]),
     new Int16Array([100, 90]),
     new Int16Array([200, 0]),
@@ -67,9 +67,18 @@ var simulationGroup = function (depth) {
         weight: 0
     };
 
+    var availableMoves = [];
+
     that.run = function (pod) {
         that.move = [];
         that.weight = 0;
+
+        //var checkpointA = GAME.main.checkpoints[pod.nextCheckPointId];
+        //var checkpointB = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ?
+        //    GAME.main.checkpoints[0] : GAME.main.checkpoints[pod.nextCheckPointId + 1];
+
+        //var checkpointAngle = checkpointA.degreesTo(pod.position);
+        //var angle = pod.angle - checkpointAngle;
 
         // Calculate all movements and find the selected simulation
         recursiveTree(pod, depth);
@@ -95,12 +104,7 @@ var simulationGroup = function (depth) {
                 if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
                     pod.checkpointMultiplier++;
                     pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                }
-
-                var previousCheckpoint = pod.nextCheckPointId == 0 ? GAME.checkpoints.length - 1 : pod.nextCheckPointId - 1;
-                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
-                    pod.checkpointMultiplier++;
-                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                    delta = 90;
                 }
 
                 var angleCp1 = Math.abs(pod.angle - cp1Angle) <= 180 ? Math.abs(pod.angle - cp1Angle) : 360 - Math.abs(pod.angle - cp1Angle);
@@ -134,7 +138,7 @@ var GAME = {
     speedCoefficient: 0.85,
     angleCoefficient: 0.2,
     radianCoefficient: Math.PI / 180,
-    checkpointRadius: 500
+    checkpointRadius: 550
 };
 
 GAME.Pod = function () {
@@ -145,11 +149,12 @@ GAME.Pod = function () {
     this.angle = 0;
     this.thrust = 0;
     this.checkpointMultiplier = 1;
+    this.turn = 1;
 };
 
 GAME.Pod.prototype = {
     // Set the next movement of the pod
-    move: function (thrust, angle) {
+    move: function (thrust, angle, isReal) {
         // Update pod thrust
         this.thrust = thrust;
 
@@ -159,6 +164,7 @@ GAME.Pod.prototype = {
 
         // Update pod angle
         this.angle += angle * GAME.angleCoefficient;
+        this.angle = this.angle < 0 ? 360 + this.angle : this.angle % 360;
 
         // Calculate new speed
         this.speed.x += Math.cos((this.angle) * GAME.radianCoefficient) * this.thrust;
@@ -198,10 +204,7 @@ GAME.Pod.prototype = {
             this.angle = inputValues[4] === -1 ? GAME.main.checkpoints[this.nextCheckPointId].degreesTo(this.position) : inputValues[4];
             this.nextCheckPointId = inputValues[5];
         } else {
-            // Update pod next checkpoint if needed
-            if (this.position.distance(GAME.main.checkpoints[this.nextCheckPointId]) < GAME.checkpointRadius) {
-                this.nextCheckPointId = this.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : this.nextCheckPointId + 1;
-            }
+          
         }
     }
 };
@@ -210,16 +213,18 @@ GAME.main = (function () {
     var that = {
         playerPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
         opponentPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
-        checkpoints: []
+        checkpoints: [],
+        loopIndex: 1
     };
 
     // Private variables
-    var loopIndex = 1;
     var depth = 4;
     var simulations = simulationGroup(depth);
+    var loopFunction;
 
     // Initialize game infos
     var initialize = function () {
+        that.loopIndex = 1;
         // The number of laps to complete the race.
         var laps = parseInt(readline());
         // The number of checkpoints in the circuit.
@@ -234,40 +239,67 @@ GAME.main = (function () {
     that.run = function () {
         // Read initialization inputs
         initialize();
+        loopFunction = setInterval(gameLoop, 100);
+    };
 
-        // Game loop
-        while (true) {
-            that.playerPods.forEach(function (pod) { pod.update(); });
-            that.opponentPods.forEach(function (pod) { pod.update(); });
+    var gameLoop = function () {
 
-            // Start timer for one turn ( turn is 150ms max. )
-            startTimer = new Date().getTime();
+        // Update pod infos
+        that.playerPods.forEach(function (pod) { pod.update(); });
+        that.opponentPods.forEach(function (pod) { pod.update(); });
 
-            // Move player's pod with genetic algorithm
-            for (var index = 0; index < that.playerPods.length; index++) {
-                var pod = that.playerPods[index];
+        // Start timer for one turn ( turn is 150ms max. )
+        startTimer = new Date().getTime();
 
+        // Move player's pod with genetic algorithm
+        for (var index = 0; index < 1; index++) {//that.playerPods.length
+            // Get current pod
+            var pod = that.playerPods[index];
+
+            // Run simulation
+            simulations.run(pod);
+
+            if (simulations.move.length == 0) {
+                debugger;
                 // Run simulation
                 simulations.run(pod);
-
-                // Calculate movement
-                pod.move(simulations.move[0], simulations.move[1]);
-
-                //// Use boost 
-                pod.thrust = loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
-
-                // Print movement
-                print(pod.destination.x + ' ' + pod.destination.y + ' ' + pod.thrust);
             }
 
-            loopIndex++;
-            endTimer = new Date().getTime();
-            var time = endTimer - startTimer;
-            printErr("Execution time " + time + "ms \n");
+            var test = pod.clone();
+
+            // Calculate movement
+            pod.move(simulations.move[0], simulations.move[1], true);
+
+            if (isNaN(pod.angle)) {
+                debugger;
+            }
+
+            //// Use boost 
+            pod.thrust = that.loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
+
+
+            // Print movement
+            print(pod.destination.x + ' ' + pod.destination.y + ' ' + pod.thrust);
+            display(pod);
+
+            // Update pod next checkpoint if needed
+            if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+                pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
+                if (pod.turn == 4) {
+                    GAME.main.checkpoints = [];
+                    pod.turn = 1;
+                    clearInterval(loopFunction);
+                    launchTest();
+                }
+            }
         }
-    };
+
+        that.loopIndex++;
+        endTimer = new Date().getTime();
+        var time = endTimer - startTimer;
+        printErr("Execution time " + time + "ms \n");
+    }
 
     return that;
 })();
-
-GAME.main.run();
