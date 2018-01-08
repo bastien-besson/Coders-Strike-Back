@@ -1,14 +1,20 @@
-﻿/* Initialize all parameters to launch the game */
+﻿/// <reference path="index.js" />
+
+/* Initialize all parameters to launch the game */
 var settings = ["3", // laps
                 "4", // checkpointCount
-                "5000 3000", //checkpointX checkpointY
-                "5000 5000", //checkpointX checkpointY
-                "6500 2750", //checkpointX checkpointY  
-                "7000 4500", //checkpointX checkpointY
-                "5000 3000 0 0 -1 1"]// podX podY vX vY angle nextCheckPointId
+                "4630 6447", //checkpointX checkpointY
+                "12381 6324", //checkpointX checkpointY
+                "10244 6583", //checkpointX checkpointY  
+                "13821 3958", //checkpointX checkpointY
+                "4630 6447 0 0 -1 1"]// podX podY vX vY angle nextCheckPointId
                 //, "4496 7722 0 0 225 3"
                 //, "12280 8528 0 0 -1 1"// podX podY vX vY angle nextCheckPointId
                 //, "13088 5640 0 0 -1 1"];// podX podY vX vY angle nextCheckPointId
+
+ //[4630;6447][12381;6324][10244;6583][13821;3958]
+
+
 
 function initSettings() {
     games.innerHTML = parseInt(games.innerHTML) + 1;
@@ -17,37 +23,41 @@ function initSettings() {
     // Clear canvas
     pathCtxt.clearRect(0, 0, 800, 450);
 
-    settings = [];
-    var minCheckpointNb = 3;
-    var maxCheckpointNb = 6;
-    var maxWidth = 15000;
-    var maxHeight = 8000;
-    var checkpointNb = Math.floor(Math.random() * (maxCheckpointNb - minCheckpointNb + 1) + minCheckpointNb);
+    //settings = [];
+    //var minCheckpointNb = 3;
+    //var maxCheckpointNb = 6;
+    //var maxWidth = 15000;
+    //var maxHeight = 8000;
+    //var checkpointNb = Math.floor(Math.random() * (maxCheckpointNb - minCheckpointNb + 1) + minCheckpointNb);
 
-    settings.push("1");// Number of laps
-    settings.push(checkpointNb);// Number of checkpoints
+    //settings.push("3");// Number of laps
+    //settings.push(checkpointNb);// Number of checkpoints
 
-    var checkpoints = [];
-    var checkpoint = new Vector();
-    for (var i = 0; i < checkpointNb; i++) {
-        var isOk = false;
+    //var checkpoints = [];
+    //var checkpoint = new Vector();
+    //for (var i = 0; i < checkpointNb; i++) {
+    //    var isOk = false;
 
-        while (!isOk) {
-            checkpoint = new Vector(Math.floor(Math.random() * (maxWidth - 1000 + 1) + 1000), Math.floor(Math.random() * (maxHeight - 1000 + 1) + 1000));
+    //    while (!isOk) {
+    //        checkpoint = new Vector(Math.floor(Math.random() * (maxWidth - 1000 + 1) + 1000), Math.floor(Math.random() * (maxHeight - 1000 + 1) + 1000));
 
-            if (!checkpoints.some(cp => cp.distance(checkpoint) < 1200)) {
-                isOk = true;
-            }
-        }
-        checkpoints.push(checkpoint);
+    //        if (!checkpoints.some(cp => cp.distance(checkpoint) < 1200)) {
+    //            isOk = true;
+    //        }
+    //    }
+    //    checkpoints.push(checkpoint);
 
-        if (i == 0) {
-            previousPosition = new Vector(checkpoint.x, checkpoint.y);
-        }
-    }
+    //    if (i == 0) {
+    //        previousPosition = new Vector(checkpoint.x, checkpoint.y);
+    //    }
+    //}
 
-    checkpoints.forEach(cp => settings.push(cp.x + ' ' + cp.y));
-    settings.push(previousPosition.x + ' ' + previousPosition.y + ' 0 0 -1 1');
+    //checkpointCoordinates.innerHTML = "";
+    //checkpoints.forEach(cp => {
+    //    settings.push(cp.x + ' ' + cp.y);
+    //    checkpointCoordinates.innerHTML += "[" + cp.x + ";" + cp.y + "]";
+    //});
+    //settings.push(previousPosition.x + ' ' + previousPosition.y + ' 0 0 -1 1');
 }
 
 function readline() {
@@ -98,6 +108,7 @@ function display(pod) {
     mainCtxt.stroke();
     mainCtxt.fill();
 
+    // Draw trajectory
     mainCtxt.beginPath();
     mainCtxt.fillStyle = "black";
     mainCtxt.moveTo(pod.position.x * screenRatio, pod.position.y * screenRatio);
@@ -116,7 +127,6 @@ function display(pod) {
     previousPosition.x = pod.position.x;
     previousPosition.y = pod.position.y;
 
-
     var angle = pod.angle;
     var nextNextCheckpointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
     var cp1Angle = GAME.main.checkpoints[pod.nextCheckPointId].degreesTo(pod.position);
@@ -128,9 +138,9 @@ function display(pod) {
     mainCtxt.fillText('angle : ' + angleCp1, 5, 35);
     mainCtxt.fillText('angle : ' + angleCp2, 5, 55);
 
-    if (angleCp1 + angleCp2 > 180 + 10) {
-        errors.innerHTML += GAME.main.loopIndex + ':' (angleCp1 + angleCp2) + ';';
-    }
+    //if (angleCp1 + angleCp2 > 180 + 10) {
+    //    errors.innerHTML += GAME.main.loopIndex + ':' + (angleCp1 + angleCp2) + ';';
+    //}
 }
 
 var podIndex = 0;
@@ -140,6 +150,8 @@ var loops = 0;
 var screenRatio = 1 / 20;
 var games = document.getElementById("games");
 var errors = document.getElementById("errors");
+var checkpointCoordinates = document.getElementById("checkpoints");
+var btnStop = document.getElementById("btnStop");
 var mainCanvas = document.getElementById("main");
 var mainCtxt = mainCanvas.getContext("2d");
 var pathCanvas = document.getElementById("path");
@@ -152,11 +164,15 @@ mainCtxt.rect(0, 0, 800, 450);
 mainCtxt.fillStyle = "grey";
 mainCtxt.fill();
 
+btnStop.onclick = function () {
+    debugger;
+    clearInterval(GAME.main.loopFunction);
+}
+
 var launchTest = function () {
     
     initSettings();
     GAME.main.run();
-
 };
 
 launchTest();

@@ -6,9 +6,14 @@ function Vector(x, y) {
 
 Vector.prototype = {
     add: function (v) {
-        this.x += v.x;
-        this.y += v.y;
-        return this;
+        var x = this.x + v.x;
+        var y = this.y + v.y;
+        return new Vector(x,y);
+    },
+    multiply: function(multiplier) {
+        var x = this.x * multiplier;
+        var y = this.y * multiplier;
+        return new Vector(x, y);
     },
     length: function () {
         return Math.sqrt(this.x * this.x + this.y * this.y);
@@ -39,14 +44,40 @@ Vector.prototype = {
     }
 }
 
+function sqr(x) {
+    return x * x
+}
+
+function dist2(v, w) {
+    return sqr(v.x - w.x) + sqr(v.y - w.y)
+}
+
+function distToSegmentSquared(p, v, w) {
+    var l2 = dist2(v, w);
+
+    if (l2 == 0) return dist2(p, v);
+
+    var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+
+    if (t < 0) return dist2(p, v);
+    if (t > 1) return dist2(p, w);
+
+    return dist2(p, { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) });
+}
+
+function distToSegment(p, v, w) {
+    return Math.sqrt(distToSegmentSquared(p, v, w));
+}
+
+
 /*********************************** MOVEMENT ************************************************/
 var moves = [
     //new Int16Array([0, 0]),
-    new Int16Array([0, -90]),
-    new Int16Array([0, 90]),
-    new Int16Array([100, 0]),
-    new Int16Array([100, -90]),
-    new Int16Array([100, 90]),
+    new Int16Array([10, -90]),
+    new Int16Array([10, 90]),
+    //new Int16Array([100, 0]),
+    //new Int16Array([100, -90]),
+    //new Int16Array([100, 90]),
     new Int16Array([200, 0]),
     new Int16Array([200, -90]),
     new Int16Array([200, 90]),
@@ -64,68 +95,108 @@ var simulationUnit = function (pod, moves) {
 var simulationGroup = function (depth) {
     var that = {
         move: [],
-        weight: 0
+        currentMoves: [],
+        allMoves: [],
+        weight: 0,
+        countMove: 0
     };
 
-    var availableMoves = [];
+    var currentMoves = [];
+    var allMoves = [];
 
     that.run = function (pod) {
         that.move = [];
+        that.currentMoves = [];
+        that.allMoves = [];
         that.weight = 0;
-
-        //var checkpointA = GAME.main.checkpoints[pod.nextCheckPointId];
-        //var checkpointB = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ?
-        //    GAME.main.checkpoints[0] : GAME.main.checkpoints[pod.nextCheckPointId + 1];
-
-        //var checkpointAngle = checkpointA.degreesTo(pod.position);
-        //var angle = pod.angle - checkpointAngle;
+        that.countMove = 0;
 
         // Calculate all movements and find the selected simulation
-        recursiveTree(pod, depth);
+        if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+            recursiveTree(pod, depth, pod.switchDirectionNb, [0,0]);
+        } else {
+            recursiveTree(pod, depth, pod.switchDirectionNb, pod.previousMove);
+        }
+        //that.allMoves.sort((a, b) => b.weight - a.weight);
     };
 
     // Initialize Tree
-    var recursiveTree = function (basePod, depth, initialMove) {
+    var recursiveTree = function (basePod, depth, switchDirectionNb, previousMove, selectedMove) {
         if (depth) {
             moves.forEach(move => {
                 // Clone pod
                 var pod = basePod.clone();
+                var previousSpeed = pod.speed.length();
+                var previousSwitchDirectionNb = switchDirectionNb;
 
+                // Check if pod has change direction before next Checkpoint
+                // => We assume it can't change direction more than twice between 2 checkpoints
+                if (previousMove && previousMove[1] * move[1] < 0) {
+                    return;
+                    //previousSwitchDirectionNb++;
+                    //if (previousSwitchDirectionNb == 2) {
+                    //    return;
+                    //}
+                }
+
+                // Add move to history
+                //that.currentMoves.push(move);
                 // Move pod
                 pod.move(move[0], move[1]);
 
-                // Check if move is interesting 
-                var nextNextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                var cp1Angle = GAME.main.checkpoints[pod.nextCheckPointId].degreesTo(pod.position);
-                var cp2Angle = GAME.main.checkpoints[nextNextCheckPointId].degreesTo(pod.position);
+                // Check if pod is moving throught the checkpoint
+                // If true, we assume it doesn't have to go away
+                if (pod.isCheckpointLocked) {
+                    var closestDistance = distToSegment(
+                        GAME.main.checkpoints[pod.nextCheckPointId],
+                        pod.position,
+                        pod.position.add(pod.speed.multiply(1000))
+                        );
 
-                // Update pod next checkpoint if needed
-                var delta = 18;
-                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
-                    pod.checkpointMultiplier++;
-                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                    delta = 90;
+                    if (closestDistance > GAME.checkpointRadius) {
+                        return;
+                    }
                 }
 
-                var angleCp1 = Math.abs(pod.angle - cp1Angle) <= 180 ? Math.abs(pod.angle - cp1Angle) : 360 - Math.abs(pod.angle - cp1Angle);
-                var angleCp2 = Math.abs(pod.angle - cp2Angle) <= 180 ? Math.abs(pod.angle - cp2Angle) : 360 - Math.abs(pod.angle - cp2Angle);
-                if (angleCp1 + angleCp2 > 180 + delta) {
+                // Check if speed is fast enough
+                if (pod.speed.length() < 175 && pod.speed.length() < previousSpeed) {
                     return;
                 }
 
+                // Check if move is interesting 
+                //var nextNextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                //var cp1Angle = GAME.main.checkpoints[pod.nextCheckPointId].degreesTo(pod.position);
+                //var cp2Angle = GAME.main.checkpoints[nextNextCheckPointId].degreesTo(pod.position);
+
+                // Update pod next checkpoint if needed
+                //var delta = 18;
+                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+                    pod.checkpointMultiplier++;
+                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                    pod.isCheckpointLocked = false;
+                }
+
+                //var angleCp1 = Math.abs(pod.angle - cp1Angle) <= 180 ? Math.abs(pod.angle - cp1Angle) : 360 - Math.abs(pod.angle - cp1Angle);
+                //var angleCp2 = Math.abs(pod.angle - cp2Angle) <= 180 ? Math.abs(pod.angle - cp2Angle) : 360 - Math.abs(pod.angle - cp2Angle);
+                //if (angleCp1 + angleCp2 > 180 + delta) {
+                //    return;
+                //}
+
                 // Update weight if all moves has been calculated
                 if (depth == 1) {
+                    that.countMove++;
                     var weight = 100000 * pod.checkpointMultiplier - pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]);
-
+                    //that.allMoves.push({ moves: that.currentMoves.slice(), weight: weight });
                     // Set the first move as 'best move' if the weight is higher
                     if (weight > that.weight) {
                         that.weight = weight;
-                        that.move = initialMove;
+                        that.move = selectedMove;
                     }
                 }
 
                 // Go recursive !
-                recursiveTree(pod, depth - 1, initialMove ? initialMove : move);
+                recursiveTree(pod, depth - 1, previousSwitchDirectionNb, move[1] == 0 ? previousMove : move, selectedMove ? selectedMove : move);
+                //that.currentMoves.pop();
             });
         }
     }
@@ -150,6 +221,9 @@ GAME.Pod = function () {
     this.thrust = 0;
     this.checkpointMultiplier = 1;
     this.turn = 1;
+    this.switchDirectionNb = 0;
+    this.previousMove = [];
+    this.isCheckpointLocked = false;
 };
 
 GAME.Pod.prototype = {
@@ -189,6 +263,8 @@ GAME.Pod.prototype = {
         clone.angle = this.angle;
         clone.nextCheckPointId = this.nextCheckPointId;
         clone.checkpointMultiplier = this.checkpointMultiplier;
+        clone.isCheckpointLocked = this.isCheckpointLocked;
+
 
         return clone;
     },
@@ -204,7 +280,7 @@ GAME.Pod.prototype = {
             this.angle = inputValues[4] === -1 ? GAME.main.checkpoints[this.nextCheckPointId].degreesTo(this.position) : inputValues[4];
             this.nextCheckPointId = inputValues[5];
         } else {
-          
+
         }
     }
 };
@@ -214,13 +290,13 @@ GAME.main = (function () {
         playerPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
         opponentPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
         checkpoints: [],
-        loopIndex: 1
+        loopIndex: 1,
+        loopFunction: {}
     };
 
     // Private variables
-    var depth = 4;
+    var depth = 11;
     var simulations = simulationGroup(depth);
-    var loopFunction;
 
     // Initialize game infos
     var initialize = function () {
@@ -239,7 +315,7 @@ GAME.main = (function () {
     that.run = function () {
         // Read initialization inputs
         initialize();
-        loopFunction = setInterval(gameLoop, 100);
+        that.loopFunction = setInterval(gameLoop, 100);
     };
 
     var gameLoop = function () {
@@ -259,24 +335,33 @@ GAME.main = (function () {
             // Run simulation
             simulations.run(pod);
 
-            if (simulations.move.length == 0) {
-                debugger;
-                // Run simulation
-                simulations.run(pod);
-            }
-
-            var test = pod.clone();
-
             // Calculate movement
             pod.move(simulations.move[0], simulations.move[1], true);
 
-            if (isNaN(pod.angle)) {
-                debugger;
+            // Check if pod has change direction before next Checkpoint
+            // => We assume it can't change direction more than twice between 2 checkpoints
+            //if (pod.previousMove && pod.previousMove[1] * simulations.move[1] < 0) {
+            //    return;
+            //    //pod.switchDirectionNb++;
+            //}
+
+            pod.previousMove.x = simulations.move.x;
+            pod.previousMove.y = simulations.move.y;
+
+            // Check if pod direction is through the checkpoint
+            if (!pod.isCheckpointLocked) {
+                var closestDistance = distToSegment(
+                    GAME.main.checkpoints[pod.nextCheckPointId],
+                    pod.position,
+                    pod.position.add(pod.speed.multiply(1000)));
+
+                if (closestDistance < GAME.checkpointRadius) {
+                    pod.isCheckpointLocked = true;
+                }
             }
 
             //// Use boost 
             pod.thrust = that.loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
-
 
             // Print movement
             print(pod.destination.x + ' ' + pod.destination.y + ' ' + pod.thrust);
@@ -286,11 +371,14 @@ GAME.main = (function () {
             if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
                 pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
                 pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
+                pod.switchDirectionNb = 0;
+                pod.isCheckpointLocked = false;
+
                 if (pod.turn == 4) {
                     GAME.main.checkpoints = [];
                     pod.turn = 1;
-                    clearInterval(loopFunction);
-                    launchTest();
+                    clearInterval(that.loopFunction);
+                    //launchTest();
                 }
             }
         }
