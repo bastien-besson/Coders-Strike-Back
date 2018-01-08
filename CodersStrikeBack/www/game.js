@@ -6,9 +6,14 @@ function Vector(x, y) {
 
 Vector.prototype = {
     add: function (v) {
-        this.x += v.x;
-        this.y += v.y;
-        return this;
+        var x = this.x + v.x;
+        var y = this.y + v.y;
+        return new Vector(x, y);
+    },
+    multiply: function (multiplier) {
+        var x = this.x * multiplier;
+        var y = this.y * multiplier;
+        return new Vector(x, y);
     },
     length: function () {
         return Math.sqrt(this.x * this.x + this.y * this.y);
@@ -39,14 +44,40 @@ Vector.prototype = {
     }
 }
 
+function sqr(x) {
+    return x * x
+}
+
+function dist2(v, w) {
+    return sqr(v.x - w.x) + sqr(v.y - w.y)
+}
+
+function distToSegmentSquared(p, v, w) {
+    var l2 = dist2(v, w);
+
+    if (l2 == 0) return dist2(p, v);
+
+    var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+
+    if (t < 0) return dist2(p, v);
+    if (t > 1) return dist2(p, w);
+
+    return dist2(p, { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) });
+}
+
+function distToSegment(p, v, w) {
+    return Math.sqrt(distToSegmentSquared(p, v, w));
+}
+
+
 /*********************************** MOVEMENT ************************************************/
 var moves = [
     //new Int16Array([0, 0]),
-    new Int16Array([0, -90]),
-    new Int16Array([0, 90]),
+    new Int16Array([10, -90]),
+    new Int16Array([10, 90]),
     //new Int16Array([100, 0]),
-    new Int16Array([100, -90]),
-    new Int16Array([100, 90]),
+    //new Int16Array([100, -90]),
+    //new Int16Array([100, 90]),
     new Int16Array([200, 0]),
     new Int16Array([200, -90]),
     new Int16Array([200, 90]),
@@ -64,55 +95,78 @@ var simulationUnit = function (pod, moves) {
 var simulationGroup = function (depth) {
     var that = {
         move: [],
-        weight: 0
+        currentMoves: [],
+        allMoves: [],
+        weight: 0,
+        countMove: 0
     };
 
     that.run = function (pod) {
         that.move = [];
+        that.currentMoves = [];
+        that.allMoves = [];
         that.weight = 0;
+        that.countMove = 0;
 
         // Calculate all movements and find the selected simulation
-        recursiveTree(pod, depth);
+        if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+            recursiveTree(pod, depth, [0, 0]);
+        } else {
+            recursiveTree(pod, depth, pod.previousMove);
+        }
+        //that.allMoves.sort((a, b) => b.weight - a.weight);
     };
 
     // Initialize Tree
-    var recursiveTree = function (basePod, depth, initialMove) {
+    var recursiveTree = function (basePod, depth, previousMove, initialMove) {
         if (depth) {
             moves.forEach(move => {
                 // Clone pod
                 var pod = basePod.clone();
+                var previousSpeed = pod.speed.length();
 
+                // Check if pod has change direction before next Checkpoint
+                // => We assume it can't change direction more than once between 2 checkpoints
+                if (previousMove && previousMove[1] * move[1] < 0) {
+                    return;
+                }
+
+                // Add move to history
+                //that.currentMoves.push(move);
                 // Move pod
                 pod.move(move[0], move[1]);
 
-                // Check if move is interesting 
-                var nextNextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                var cp1Angle = GAME.main.checkpoints[pod.nextCheckPointId].degreesTo(pod.position);
-                var cp2Angle = GAME.main.checkpoints[nextNextCheckPointId].degreesTo(pod.position);
+                // Check if pod is moving throught the checkpoint
+                // If true, we assume it doesn't have to go away
+                if (pod.isCheckpointLocked) {
+                    var closestDistance = distToSegment(
+                        GAME.main.checkpoints[pod.nextCheckPointId],
+                        pod.position,
+                        pod.position.add(pod.speed.multiply(1000))
+                        );
+
+                    if (closestDistance > GAME.checkpointRadius) {
+                        return;
+                    }
+                }
+
+                // Check if speed is fast enough
+                if (!pod.hadCollision && pod.speed.length() < 175 && pod.speed.length() < previousSpeed) {
+                    return;
+                }
 
                 // Update pod next checkpoint if needed
-                var delta = 18;
                 if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
                     pod.checkpointMultiplier++;
                     pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                }
-
-                var previousCheckpoint = pod.nextCheckPointId == 0 ? GAME.checkpoints.length - 1 : pod.nextCheckPointId - 1;
-                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
-                    pod.checkpointMultiplier++;
-                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-                }
-
-                var angleCp1 = Math.abs(pod.angle - cp1Angle) <= 180 ? Math.abs(pod.angle - cp1Angle) : 360 - Math.abs(pod.angle - cp1Angle);
-                var angleCp2 = Math.abs(pod.angle - cp2Angle) <= 180 ? Math.abs(pod.angle - cp2Angle) : 360 - Math.abs(pod.angle - cp2Angle);
-                if (angleCp1 + angleCp2 > 180 + delta) {
-                    return;
+                    pod.isCheckpointLocked = false;
                 }
 
                 // Update weight if all moves has been calculated
                 if (depth == 1) {
+                    that.countMove++;
                     var weight = 100000 * pod.checkpointMultiplier - pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]);
-
+                    //that.allMoves.push({ moves: that.currentMoves.slice(), weight: weight });
                     // Set the first move as 'best move' if the weight is higher
                     if (weight > that.weight) {
                         that.weight = weight;
@@ -121,7 +175,8 @@ var simulationGroup = function (depth) {
                 }
 
                 // Go recursive !
-                recursiveTree(pod, depth - 1, initialMove ? initialMove : move);
+                recursiveTree(pod, depth - 1, move[1] == 0 ? previousMove : move, initialMove ? initialMove : move);
+                //that.currentMoves.pop();
             });
         }
     }
@@ -134,7 +189,7 @@ var GAME = {
     speedCoefficient: 0.85,
     angleCoefficient: 0.2,
     radianCoefficient: Math.PI / 180,
-    checkpointRadius: 500
+    checkpointRadius: 450
 };
 
 GAME.Pod = function () {
@@ -145,20 +200,30 @@ GAME.Pod = function () {
     this.angle = 0;
     this.thrust = 0;
     this.checkpointMultiplier = 1;
+    this.previousMove = [];
+    this.isCheckpointLocked = false;
+    this.hadCollision = false;
 };
 
 GAME.Pod.prototype = {
     // Set the next movement of the pod
-    move: function (thrust, angle) {
+    move: function (thrust, angle, needDestination) {
         // Update pod thrust
         this.thrust = thrust;
 
-        // Calculate desired destination destination vector
-        this.destination.x = this.position.x + Math.round(Math.cos((this.angle + angle) * GAME.radianCoefficient)) * 100;
-        this.destination.y = this.position.y + Math.round(Math.sin((this.angle + angle) * GAME.radianCoefficient)) * 100;
+        if (needDestination) {
+            // Calculate desired destination destination vector
+            var destinationAngle = this.angle + angle < 0 ? 360 + this.angle + angle : (this.angle + angle) % 360;
+            printErr("angle : " + this.angle);
+            printErr("move : " + thrust + ' ' + angle);
+            printErr("dest angle : " + destinationAngle);
+            this.destination.x = this.position.x + Math.round(Math.cos(destinationAngle * GAME.radianCoefficient)) * 100;
+            this.destination.y = this.position.y + Math.round(Math.sin(destinationAngle * GAME.radianCoefficient)) * 100;
+        }
 
         // Update pod angle
         this.angle += angle * GAME.angleCoefficient;
+        this.angle = this.angle < 0 ? 360 + this.angle : this.angle % 360;
 
         // Calculate new speed
         this.speed.x += Math.cos((this.angle) * GAME.radianCoefficient) * this.thrust;
@@ -183,6 +248,8 @@ GAME.Pod.prototype = {
         clone.angle = this.angle;
         clone.nextCheckPointId = this.nextCheckPointId;
         clone.checkpointMultiplier = this.checkpointMultiplier;
+        clone.isCheckpointLocked = this.isCheckpointLocked;
+        clone.hadCollision = this.hadCollision;
 
         return clone;
     },
@@ -193,15 +260,14 @@ GAME.Pod.prototype = {
         if (line) {
             // 0 : posX; 1 : posY; 2 : speedX; 3 : speedY; 4 : angle; 5 : nextCheckpointId
             var inputValues = line.split(' ').map(function (value) { return parseInt(value); });
+
+            var newPosition = new Vector(inputValues[0], inputValues[1]);
+            this.hadCollision = this.position.distance(newPosition) > 5;
+            this.isCheckpointLocked = this.hadCollision && !this.hadCollision;
             this.position = new Vector(inputValues[0], inputValues[1]);
             this.speed = new Vector(inputValues[2], inputValues[3]);
             this.angle = inputValues[4] === -1 ? GAME.main.checkpoints[this.nextCheckPointId].degreesTo(this.position) : inputValues[4];
             this.nextCheckPointId = inputValues[5];
-        } else {
-            // Update pod next checkpoint if needed
-            if (this.position.distance(GAME.main.checkpoints[this.nextCheckPointId]) < GAME.checkpointRadius) {
-                this.nextCheckPointId = this.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : this.nextCheckPointId + 1;
-            }
         }
     }
 };
@@ -210,12 +276,13 @@ GAME.main = (function () {
     var that = {
         playerPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
         opponentPods: [new GAME.Pod(), new GAME.Pod()], // new Array(2).fill().map(function(pod) { return new GAME.Pod(); }),
-        checkpoints: []
+        checkpoints: [],
+        loopIndex: 1,
+        loopFunction: {}
     };
 
     // Private variables
-    var loopIndex = 1;
-    var depth = 4;
+    var depth = 9;
     var simulations = simulationGroup(depth);
 
     // Initialize game infos
@@ -234,9 +301,13 @@ GAME.main = (function () {
     that.run = function () {
         // Read initialization inputs
         initialize();
+        gameLoop();
+    };
 
+    var gameLoop = function () {
         // Game loop
         while (true) {
+            // Update pod infos
             that.playerPods.forEach(function (pod) { pod.update(); });
             that.opponentPods.forEach(function (pod) { pod.update(); });
 
@@ -245,22 +316,50 @@ GAME.main = (function () {
 
             // Move player's pod with genetic algorithm
             for (var index = 0; index < that.playerPods.length; index++) {
+                // Get current pod
                 var pod = that.playerPods[index];
 
                 // Run simulation
                 simulations.run(pod);
 
                 // Calculate movement
-                pod.move(simulations.move[0], simulations.move[1]);
+                printErr('prev position :' + pod.position.x + ' ' + pod.position.y);
+                pod.move(simulations.move[0], simulations.move[1], true);
+
+                // Set previous movement
+                pod.previousMove.x = simulations.move.x;
+                pod.previousMove.y = simulations.move.y;
+
+                // Check if pod direction is through the checkpoint
+                if (!pod.isCheckpointLocked) {
+                    var closestDistance = distToSegment(
+                        GAME.main.checkpoints[pod.nextCheckPointId],
+                        pod.position,
+                        pod.position.add(pod.speed.multiply(1000)));
+
+                    if (closestDistance < GAME.checkpointRadius) {
+                        pod.isCheckpointLocked = true;
+                    }
+                }
 
                 //// Use boost 
-                pod.thrust = loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
+                pod.thrust = that.loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
 
                 // Print movement
                 print(pod.destination.x + ' ' + pod.destination.y + ' ' + pod.thrust);
+                printErr('new position :' + pod.position.x + ' ' + pod.position.y);
+                //printErr('angle :' + pod.angle);
+                //printErr('thrust :' + pod.thrust);
+
+                // Update pod next checkpoint if needed
+                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                    pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
+                    pod.isCheckpointLocked = false;
+                }
             }
 
-            loopIndex++;
+            that.loopIndex++;
             endTimer = new Date().getTime();
             var time = endTimer - startTimer;
             printErr("Execution time " + time + "ms \n");

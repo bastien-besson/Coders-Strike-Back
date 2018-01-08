@@ -23,41 +23,41 @@ function initSettings() {
     // Clear canvas
     pathCtxt.clearRect(0, 0, 800, 450);
 
-    //settings = [];
-    //var minCheckpointNb = 3;
-    //var maxCheckpointNb = 6;
-    //var maxWidth = 15000;
-    //var maxHeight = 8000;
-    //var checkpointNb = Math.floor(Math.random() * (maxCheckpointNb - minCheckpointNb + 1) + minCheckpointNb);
+    settings = [];
+    var minCheckpointNb = 3;
+    var maxCheckpointNb = 6;
+    var maxWidth = 15000;
+    var maxHeight = 8000;
+    var checkpointNb = Math.floor(Math.random() * (maxCheckpointNb - minCheckpointNb + 1) + minCheckpointNb);
 
-    //settings.push("3");// Number of laps
-    //settings.push(checkpointNb);// Number of checkpoints
+    settings.push("3");// Number of laps
+    settings.push(checkpointNb);// Number of checkpoints
 
-    //var checkpoints = [];
-    //var checkpoint = new Vector();
-    //for (var i = 0; i < checkpointNb; i++) {
-    //    var isOk = false;
+    var checkpoints = [];
+    var checkpoint = new Vector();
+    for (var i = 0; i < checkpointNb; i++) {
+        var isOk = false;
 
-    //    while (!isOk) {
-    //        checkpoint = new Vector(Math.floor(Math.random() * (maxWidth - 1000 + 1) + 1000), Math.floor(Math.random() * (maxHeight - 1000 + 1) + 1000));
+        while (!isOk) {
+            checkpoint = new Vector(Math.floor(Math.random() * (maxWidth - 1000 + 1) + 1000), Math.floor(Math.random() * (maxHeight - 1000 + 1) + 1000));
 
-    //        if (!checkpoints.some(cp => cp.distance(checkpoint) < 1200)) {
-    //            isOk = true;
-    //        }
-    //    }
-    //    checkpoints.push(checkpoint);
+            if (!checkpoints.some(cp => cp.distance(checkpoint) < 1200)) {
+                isOk = true;
+            }
+        }
+        checkpoints.push(checkpoint);
 
-    //    if (i == 0) {
-    //        previousPosition = new Vector(checkpoint.x, checkpoint.y);
-    //    }
-    //}
+        if (i == 0) {
+            previousPosition = new Vector(checkpoint.x, checkpoint.y);
+        }
+    }
 
-    //checkpointCoordinates.innerHTML = "";
-    //checkpoints.forEach(cp => {
-    //    settings.push(cp.x + ' ' + cp.y);
-    //    checkpointCoordinates.innerHTML += "[" + cp.x + ";" + cp.y + "]";
-    //});
-    //settings.push(previousPosition.x + ' ' + previousPosition.y + ' 0 0 -1 1');
+    checkpointCoordinates.innerHTML = "";
+    checkpoints.forEach(cp => {
+        settings.push(cp.x + ' ' + cp.y);
+        checkpointCoordinates.innerHTML += "[" + cp.x + ";" + cp.y + "]";
+    });
+    settings.push(previousPosition.x + ' ' + previousPosition.y + ' 0 0 -1 1');
 }
 
 function readline() {

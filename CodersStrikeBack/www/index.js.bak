@@ -340,18 +340,18 @@ GAME.main = (function () {
 
             	display(pod);
 
-	            // Update pod next checkpoint if needed
-	            if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
-	                pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-	                pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
-	                pod.isCheckpointLocked = false;
-	
-	                if (pod.turn == 4) {
-	                    GAME.main.checkpoints = [];
-	                    pod.turn = 1;
-	                    clearInterval(that.loopFunction);
-	                    launchTest();
-	                }
+            // Update pod next checkpoint if needed
+            if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+                pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
+                pod.isCheckpointLocked = false;
+
+                if (pod.turn == 4) {
+                    GAME.main.checkpoints = [];
+                    pod.turn = 1;
+                    clearInterval(that.loopFunction);
+                    launchTest();
+                }
             }
 
         that.loopIndex++;

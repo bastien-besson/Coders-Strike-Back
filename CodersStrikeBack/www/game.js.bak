@@ -1,4 +1,4 @@
-/*********************************** VECTOR ************************************************/
+﻿/*********************************** VECTOR ************************************************/
 function Vector(x, y) {
     this.x = x || 0;
     this.y = y || 0;
@@ -290,13 +290,12 @@ GAME.main = (function () {
     that.run = function () {
         // Read initialization inputs
         initialize();
-        that.loopFunction = setInterval(gameLoop, 100);
+        gameLoop();
     };
 
     var gameLoop = function () {
-
-
-
+        // Game loop
+        while (true) {
         // Update pod infos
             that.playerPods.forEach(function (pod) { pod.update(); });
             that.opponentPods.forEach(function (pod) { pod.update(); });
@@ -305,7 +304,7 @@ GAME.main = (function () {
             startTimer = new Date().getTime();
 
             // Move player's pod with genetic algorithm
-            for (var index = 0; index < 1; index++) {
+            for (var index = 0; index < that.playerPods.length; index++) {
                 // Get current pod
                 var pod = that.playerPods[index];
 
@@ -330,7 +329,6 @@ GAME.main = (function () {
                         pod.isCheckpointLocked = true;
                     }
                 }
-            }
 
                 //// Use boost 
                 pod.thrust = that.loopIndex === 1 && index === 0 ? "BOOST" : pod.thrust;
@@ -338,20 +336,14 @@ GAME.main = (function () {
                 // Print movement
                 print(pod.destination.x + ' ' + pod.destination.y + ' ' + pod.thrust);
 
-            	display(pod);
 
-	            // Update pod next checkpoint if needed
-	            if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
-	                pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
-	                pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
-	                pod.isCheckpointLocked = false;
-	
-	                if (pod.turn == 4) {
-	                    GAME.main.checkpoints = [];
-	                    pod.turn = 1;
-	                    clearInterval(that.loopFunction);
-	                    launchTest();
-	                }
+
+                // Update pod next checkpoint if needed
+                if (pod.position.distance(GAME.main.checkpoints[pod.nextCheckPointId]) < GAME.checkpointRadius) {
+                    pod.nextCheckPointId = pod.nextCheckPointId == GAME.main.checkpoints.length - 1 ? 0 : pod.nextCheckPointId + 1;
+                    pod.turn = pod.nextCheckPointId == 1 ? pod.turn + 1 : pod.turn;
+                    pod.isCheckpointLocked = false;
+                }
             }
 
         that.loopIndex++;
@@ -362,3 +354,5 @@ GAME.main = (function () {
 
     return that;
 })();
+
+GAME.main.run();
